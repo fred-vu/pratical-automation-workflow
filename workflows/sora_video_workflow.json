@@ -1,0 +1,273 @@
+{
+  "name": "Generate Sora Video from Notion Prompt",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "ManualTrigger",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "getAll",
+        "databaseId": "={{$env.NOTION_PROMPT_DATABASE}}",
+        "returnAll": true,
+        "options": {
+          "filter": {
+            "property": "Status",
+            "status": {
+              "equals": "Ready"
+            }
+          },
+          "sort": [
+            {
+              "property": "Last edited time",
+              "direction": "desc"
+            }
+          ]
+        }
+      },
+      "id": "NotionFetch",
+      "name": "Fetch Ready Prompt",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2,
+      "position": [480, 300],
+      "credentials": {
+        "notionApi": {
+          "id": "Notion account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "keepOnlySet": true,
+        "values": {
+          "string": [
+            {
+              "name": "prompt",
+              "value": "={{$json.properties['Prompt'].rich_text[0].plain_text}}"
+            },
+            {
+              "name": "recordId",
+              "value": "={{$json.id}}"
+            }
+          ]
+        }
+      },
+      "id": "SetPrompt",
+      "name": "Prepare Prompt",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [740, 300]
+    },
+    {
+      "parameters": {
+        "requestMethod": "POST",
+        "url": "https://api.openai.com/v1/videos",
+        "jsonParameters": true,
+        "responseFormat": "json",
+        "options": {
+          "bodyContentType": "json"
+        },
+        "body": {
+          "model": "sora-2",
+          "prompt": "={{$json.prompt}}",
+          "callback": {
+            "url": "={{$node['Wait for Sora Callback'].webhookUrl}}",
+            "headers": {
+              "x-record-id": "={{$json.recordId}}"
+            }
+          }
+        },
+        "authentication": "headerAuth"
+      },
+      "id": "RequestSora",
+      "name": "Request Sora Video",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1020, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "OpenAI API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "waitTill": "webhook",
+        "maxWaitTime": 604800,
+        "webhookId": "sora-video-complete"
+      },
+      "id": "WaitWebhook",
+      "name": "Wait for Sora Callback",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [1280, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "const body = items[0].json.body || items[0].json;\nconst headers = items[0].json.headers || {};\nconst videoUrl = body?.data?.result?.video?.url || body?.data?.assets?.video?.url || body?.video_url;\nif (!videoUrl) {\n  throw new Error('Video URL not found in callback payload');\n}\nreturn [{ json: {\n  recordId: headers['x-record-id'] || body?.metadata?.recordId,\n  videoUrl,\n  payload: body\n}}];"
+      },
+      "id": "ParseCallback",
+      "name": "Parse Callback",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1540, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{$json.videoUrl}}",
+        "responseFormat": "file",
+        "options": {
+          "fullResponse": true
+        }
+      },
+      "id": "DownloadVideo",
+      "name": "Download Video",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1800, 300]
+    },
+    {
+      "parameters": {
+        "binaryData": true,
+        "binaryPropertyName": "data",
+        "fileName": "={{$json.recordId}}-sora.mp4",
+        "parents": [],
+        "options": {
+          "useJsonParameters": true
+        }
+      },
+      "id": "UploadDrive",
+      "name": "Upload to Drive",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [2060, 300],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "Drive Service Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "update",
+        "pageId": "={{$json.recordId}}",
+        "properties": {
+          "Status": {
+            "status": {
+              "name": "Completed"
+            }
+          },
+          "Video URL": {
+            "url": "={{$node['Upload to Drive'].json.webViewLink}}"
+          }
+        }
+      },
+      "id": "UpdateNotion",
+      "name": "Update Notion Record",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2,
+      "position": [2320, 300],
+      "credentials": {
+        "notionApi": {
+          "id": "Notion account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Ready Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Ready Prompt": {
+      "main": [
+        [
+          {
+            "node": "Prepare Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Prompt": {
+      "main": [
+        [
+          {
+            "node": "Request Sora Video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Request Sora Video": {
+      "main": [
+        [
+          {
+            "node": "Wait for Sora Callback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for Sora Callback": {
+      "main": [
+        [
+          {
+            "node": "Parse Callback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Callback": {
+      "main": [
+        [
+          {
+            "node": "Download Video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Video": {
+      "main": [
+        [
+          {
+            "node": "Upload to Drive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload to Drive": {
+      "main": [
+        [
+          {
+            "node": "Update Notion Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
