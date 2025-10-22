@@ -76,18 +76,14 @@ Before you begin, ensure you have:
 
 ## Installation
 
-### Step 1: Clone the Repository
+### Step 1: Clone the Repository or Download this folder.
 
-```bash
-git clone https://github.com/your-org/po-extraction-workflow.git
-cd po-extraction-workflow
-```
 
 ### Step 2: Import Workflow into n8n
 
 1. Open your n8n instance
 2. Navigate to **Workflows** → **Import**
-3. Upload the `workflow.json` file from this repository
+3. Upload the workflow : 'Fred VU - Order OCR to Supabase.json' file from this repository
 4. Click **Import**
 
 Alternatively, use the n8n CLI:
@@ -600,6 +596,6 @@ This workflow is provided as-is for commercial and non-commercial use. Attributi
 
 ---
 
-**Last Updated:** 2025-01-20  
-**Maintained by:** [Your Team/Name]  
+**Last Updated:** 2025-10-20  
+**Maintained by:** [Fred VU]  
 **Status:** Active & Tested ✓
