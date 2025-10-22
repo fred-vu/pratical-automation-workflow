@@ -1,0 +1,2621 @@
+{
+  "name": "Fred VU - Order OCR to Supabase",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "Document link",
+        "formDescription": "input link of document that need to be processed",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Document_Url",
+              "placeholder": "http://www.dropbox.com/",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.3,
+      "position": [
+        -688,
+        -16
+      ],
+      "id": "bef861d8-2a97-4020-824c-4cc1070ac183",
+      "name": "On form submission",
+      "webhookId": "b685f32e-1000-4e2c-bb01-e7626cc684a5"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "782de9e4-335c-4145-959c-20896e6b46c0",
+              "name": "Document_Url",
+              "value": "={{ $json.Document_Url }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -480,
+        -16
+      ],
+      "id": "8e8cdbda-fae3-401c-bcfa-e210a459839d",
+      "name": "Set Data URL"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.mistral.ai/v1/ocr",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "mistralCloudApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"mistral-ocr-latest\",\n  \"document\": {\n    \"document_url\": \"https://pdfobject.com/pdf/sample.pdf\"\n  },\n  \"bbox_annotation_format\": {\n    \"type\": \"json_schema\",\n    \"json_schema\": {\n      \"schema\": {\n        \"properties\": {\n          \"image_type\": { \"title\": \"Image_Type\", \"type\": \"string\", \"description\": \"type of image\" },\n          \"short_description\": { \"title\": \"Short_Description\", \"type\": \"string\", \"description\": \"short description\" },\n          \"summary\": { \"title\": \"Summary\", \"type\": \"string\", \"description\": \"summary of the image\" }\n        },\n        \"required\": [\"image_type\",\"short_description\",\"summary\"],\n        \"title\": \"BBOXAnnotation\",\n        \"type\": \"object\",\n        \"additionalProperties\": false\n      },\n      \"name\": \"bbox_annotation\",\n      \"strict\": true\n    }\n  },\n  \"include_image_base64\": false\n}\n",
+        "options": {}
+      },
+      "id": "91f952e6-00ce-4560-bd9e-028aa857e125",
+      "name": "Mistral DOC OCR1",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        -720,
+        2256
+      ],
+      "typeVersion": 4.2,
+      "credentials": {
+        "mistralCloudApi": {
+          "id": "f9L1mQn5AbBAl9BY",
+          "name": "Mistral Cloud account"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are a JSON conversion specialist assistant. Your ONLY job is to convert unstructured order document text into valid JSON format.\n\n### RULES (CRITICAL - FOLLOW EXACTLY):\n1. **OUTPUT ONLY JSON** - No explanations, no recommendations, no markdown code blocks\n2. **VALID JSON ONLY** - Ensure all output is valid, parseable JSON\n3. **EXTRACT ACCURATELY** - Match the exact schema provided below\n4. **NULL FOR MISSING** - Use null for any field you cannot find (NOT empty string, NOT \"N/A\")\n5. **ERROR FORMAT ONLY** - If cannot parse, output ONLY: {\"error\": true, \"reason\": \"specific reason\"}\n6. **NO ASSUMPTIONS** - Only extract data explicitly visible in source document\n7. **DATA TYPES** - Respect types: strings in quotes, numbers without quotes, booleans lowercase\n\n### INPUT MESSAGE:\n{{$('Mistral DOC OCR2 Process').item.json.pages[0].markdown}}\n\n### OUTPUT SCHEMA (MUST FOLLOW EXACTLY):\n```json\n{\n  \"vendor\": {\n    \"name\": \"string\",\n    \"address\": {\n      \"street\": \"string\",\n      \"postal_code\": \"string\",\n      \"city\": \"string\"\n    },\n    \"contact\": {\n      \"person\": \"string\",\n      \"phone\": \"string or null\"\n    },\n    \"client_vat_registration_no_to_invoice\": \"string or null\",\n    \"vendor_number\": \"string or null\"\n  },\n  \"order\": {\n    \"purchase_order_number\": \"string or null\",\n    \"purchase_order_date\": \"YYYY-MM-DD or null\",\n    \"delivery_date\": \"YYYY-MM-DD or null\",\n    \"delivery_address\": {\n      \"name\": \"string\",\n      \"address\": {\n        \"street\": \"string\",\n        \"postal_code\": \"string\",\n        \"city\": \"string\"\n      }\n    },\n    \"terms_of_delivery\": \"string or null\",\n    \"terms_of_payment\": {\n      \"method\": \"string or null\",\n      \"due_days\": \"number or null\",\n      \"reference\": \"string or null\",\n      \"from_invoice_date\": \"boolean\",\n      \"currency\": \"string\"\n    },\n    \"items\": [\n      {\n        \"item_number\": \"string\",\n        \"material_number\": \"string or null\",\n        \"description\": \"string\",\n        \"order_quantity\": \"number\",\n        \"unit\": \"string\",\n        \"unit_price\": {\n          \"gross\": \"number\",\n          \"net\": \"number\"\n        },\n        \"total_net_value\": \"number\",\n        \"international_article_number\": \"string or null\",\n        \"non_deductible_tax\": \"number\"\n      }\n    ],\n    \"total_net_value\": {\n      \"excl_tax\": \"number\",\n      \"tax\": \"number\",\n      \"total\": \"number\"\n    }\n  }\n}\n```\n\n### EXTRACTION GUIDELINES:\n\n**Vendor Section:**\n- Extract company name, full address (street, postal code, city)\n- Find contact person name and phone number\n- Extract VAT registration number and vendor number\n\n**Order Section:**\n- Extract PO number, PO date, delivery date (format as YYYY-MM-DD)\n- Parse delivery address with complete details\n- Extract payment terms: method code, payment days, reference text\n- Identify currency (default to EUR if not found)\n\n**Items Section:**\n- Extract each line item as separate object\n- Item number, material code, product description\n- Order quantity (numeric value only) and unit of measure\n- Unit price (gross and net) and total line value\n- EAN/article number if present\n\n**Totals Section:**\n- Sum of all line items (excl_tax)\n- Total tax amount\n- Grand total (excl_tax + tax)\n\n### STRICT CONVERSION RULES:\n\n| Input Type | Output Rule | Example |\n|-----------|-----------|---------|\n| Date | YYYY-MM-DD format | \"2023-12-28\" |\n| Currency Amount | Float number | 4000.00 (not \"4000\" or \"$4000\") |\n| Quantity | Integer number | 200 (not \"200 pieces\") |\n| Missing Value | null | null (not \"\", not \"N/A\", not \"unknown\") |\n| Boolean | lowercase true/false | true or false |\n| Text | Exact string as found | \"FRED VU PARIS\" (preserve case & spacing) |\n\n### ERROR CONDITIONS:\n\nOutput error JSON ONLY if:\n- OCR text is completely illegible/corrupted\n- Cannot identify vendor or order information\n- Document is not an order/invoice format\n- Critical required fields cannot be extracted\n\n**ERROR RESPONSE FORMAT:**\n```json\n{\n  \"error\": true,\n  \"reason\": \"Specific explanation of what failed\"\n}\n```\n\n### EXECUTION:\n1. Parse the input markdown text carefully\n2. Match each field to the schema\n3. Validate all data types\n4. Output ONLY the JSON object (no extra text, no code blocks)\n5. Ensure valid JSON syntax\n\nSTART PROCESSING:\n```",
+        "hasOutputParser": true,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        64,
+        -16
+      ],
+      "id": "362c91e9-079c-49ae-a535-034fbbf05f7f",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        48,
+        160
+      ],
+      "id": "456a6c5e-72f7-46b6-9fbd-e22a6ce254f3",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "Fa1Ums9niCoA5YJN",
+          "name": "OpenAi-D"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"vendor\": {\n    \"name\": \"string\",\n    \"address\": {\n      \"street\": \"string\",\n      \"postal_code\": \"string\",\n      \"city\": \"string\"\n    },\n    \"contact\": {\n      \"person\": \"string\",\n      \"phone\": \"string or null\"\n    },\n    \"client_vat_registration_no_to_invoice\": \"string or null\",\n    \"vendor_number\": \"string or null\"\n  },\n  \"order\": {\n    \"purchase_order_number\": \"string or null\",\n    \"purchase_order_date\": \"YYYY-MM-DD or null\",\n    \"delivery_date\": \"YYYY-MM-DD or null\",\n    \"delivery_address\": {\n      \"name\": \"string\",\n      \"address\": {\n        \"street\": \"string\",\n        \"postal_code\": \"string\",\n        \"city\": \"string\"\n      }\n    },\n    \"terms_of_delivery\": \"string or null\",\n    \"terms_of_payment\": {\n      \"method\": \"string or null\",\n      \"due_days\": \"number or null\",\n      \"reference\": \"string or null\",\n      \"from_invoice_date\": \"boolean\",\n      \"currency\": \"string\"\n    },\n    \"items\": [\n      {\n        \"item_number\": \"string\",\n        \"material_number\": \"string or null\",\n        \"description\": \"string\",\n        \"order_quantity\": \"number\",\n        \"unit\": \"string\",\n        \"unit_price\": {\n          \"gross\": \"number\",\n          \"net\": \"number\"\n        },\n        \"total_net_value\": \"number\",\n        \"international_article_number\": \"string or null\",\n        \"non_deductible_tax\": \"number\"\n      },\n      {\n        \"item_number\": \"string\",\n        \"material_number\": \"string or null\",\n        \"description\": \"string\",\n        \"order_quantity\": \"number\",\n        \"unit\": \"string\",\n        \"unit_price\": {\n          \"gross\": \"number\",\n          \"net\": \"number\"\n        },\n        \"total_net_value\": \"number\",\n        \"international_article_number\": \"string or null\",\n        \"non_deductible_tax\": \"number\"\n      }\n    ],\n    \"total_net_value\": {\n      \"excl_tax\": \"number\",\n      \"tax\": \"number\",\n      \"total\": \"number\"\n    }\n  }\n}",
+        "autoFix": true
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        128,
+        240
+      ],
+      "id": "6beac372-3453-4c79-b211-542a8546f654",
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o",
+          "mode": "list",
+          "cachedResultName": "gpt-4o"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        128,
+        368
+      ],
+      "id": "a2146e69-9f27-4b3c-b6e6-fd993d4ef7a2",
+      "name": "OpenAI Chat Model1",
+      "credentials": {
+        "openAiApi": {
+          "id": "Fa1Ums9niCoA5YJN",
+          "name": "OpenAi-D"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "69735a98-e87c-4849-abcd-52ea1f5626bb",
+              "name": "output",
+              "value": "={{ $json.output }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        448,
+        -16
+      ],
+      "id": "78210335-6726-4b62-93a7-4fc75dec9ca5",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.mistral.ai/v1/ocr",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "mistralCloudApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"mistral-ocr-latest\",\n  \"document\": {\n    \"document_url\": \"{{$('Set Data URL').item.json.Document_Url}}\"\n  },\n  \"bbox_annotation_format\": {\n    \"type\": \"json_schema\",\n    \"json_schema\": {\n      \"schema\": {\n        \"properties\": {\n          \"image_type\": { \"title\": \"Image_Type\", \"type\": \"string\", \"description\": \"type of image\" },\n          \"short_description\": { \"title\": \"Short_Description\", \"type\": \"string\", \"description\": \"short description\" },\n          \"summary\": { \"title\": \"Summary\", \"type\": \"string\", \"description\": \"summary of the image\" }\n        },\n        \"required\": [\"image_type\",\"short_description\",\"summary\"],\n        \"title\": \"BBOXAnnotation\",\n        \"type\": \"object\",\n        \"additionalProperties\": false\n      },\n      \"name\": \"bbox_annotation\",\n      \"strict\": true\n    }\n  },\n  \"include_image_base64\": false\n}\n",
+        "options": {}
+      },
+      "id": "f9abced9-a656-4517-967e-5288c51f2d77",
+      "name": "Mistral DOC OCR2 Process",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        -176,
+        -16
+      ],
+      "typeVersion": 4.2,
+      "credentials": {
+        "mistralCloudApi": {
+          "id": "f9L1mQn5AbBAl9BY",
+          "name": "Mistral Cloud account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://api.mistral.ai/v1/models",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "mistralCloudApi",
+        "options": {}
+      },
+      "id": "a526e7f2-746a-4098-a1ea-51af1a8a32ff",
+      "name": "Mistral Models check",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        -928,
+        2256
+      ],
+      "typeVersion": 4.2,
+      "credentials": {
+        "mistralCloudApi": {
+          "id": "f9L1mQn5AbBAl9BY",
+          "name": "Mistral Cloud account"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "tableId": "orders",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "purchase_order_number",
+              "fieldValue": "={{ $('Edit Fields').item.json.output.order.purchase_order_number }}"
+            },
+            {
+              "fieldId": "vendor_name",
+              "fieldValue": "={{ $('Edit Fields').item.json.output.vendor.name }}"
+            },
+            {
+              "fieldId": "vendor_number",
+              "fieldValue": "={{ $('Edit Fields').item.json.output.vendor.vendor_number }}"
+            },
+            {
+              "fieldId": "vendor_street",
+              "fieldValue": "={{ $('Edit Fields').item.json.output.vendor.address.street }}"
+            },
+            {
+              "fieldId": "vendor_postal_code",
+              "fieldValue": "={{ $('Edit Fields').item.json.output.vendor.address.postal_code }}"
+            },
+            {
+              "fieldId": "vendor_city",
+              "fieldValue": "={{ $('Edit Fields').item.json.output.vendor.address.city }}"
+            },
+            {
+              "fieldId": "vendor_vat_registration",
+              "fieldValue": "={{ $('Edit Fields').item.json.output.vendor.client_vat_registration_no_to_invoice }}"
+            },
+            {
+              "fieldId": "purchase_order_date",
+              "fieldValue": "={{ $('Edit Fields').item.json.output.order.purchase_order_date }}"
+            },
+            {
+              "fieldId": "delivery_date",
+              "fieldValue": "={{ $('Edit Fields').item.json.output.order.delivery_date }}"
+            },
+            {
+              "fieldId": "delivery_name",
+              "fieldValue": "={{ $('Edit Fields').item.json.output.order.delivery_address.name }}"
+            },
+            {
+              "fieldId": "delivery_street",
+              "fieldValue": "={{ $('Edit Fields').item.json.output.order.delivery_address.address.street }}"
+            },
+            {
+              "fieldId": "delivery_street",
+              "fieldValue": "={{ $('Edit Fields').item.json.output.order.delivery_address.address.street }}"
+            },
+            {
+              "fieldId": "delivery_postal_code",
+              "fieldValue": "={{ $('Edit Fields').item.json.output.order.delivery_address.address.postal_code }}"
+            },
+            {
+              "fieldId": "delivery_city",
+              "fieldValue": "={{ $('Edit Fields').item.json.output.order.delivery_address.address.city }}"
+            },
+            {
+              "fieldId": "terms_of_delivery",
+              "fieldValue": "={{ $('Edit Fields').item.json.output.order.terms_of_delivery }}"
+            },
+            {
+              "fieldId": "payment_method",
+              "fieldValue": "={{ $('Edit Fields').item.json.output.order.terms_of_payment.method }}"
+            },
+            {
+              "fieldId": "payment_due_days",
+              "fieldValue": "={{ $('Edit Fields').item.json.output.order.terms_of_payment.due_days }}"
+            },
+            {
+              "fieldId": "payment_reference",
+              "fieldValue": "={{ $('Edit Fields').item.json.output.order.terms_of_payment.reference }}"
+            },
+            {
+              "fieldId": "from_invoice_date",
+              "fieldValue": "={{ $('Edit Fields').item.json.output.order.terms_of_payment.from_invoice_date }}"
+            },
+            {
+              "fieldId": "currency",
+              "fieldValue": "={{ $('Edit Fields').item.json.output.order.terms_of_payment.currency }}"
+            },
+            {
+              "fieldId": "subtotal_excl_tax",
+              "fieldValue": "={{ $('Edit Fields').item.json.output.order.total_net_value.excl_tax }}"
+            },
+            {
+              "fieldId": "total_tax",
+              "fieldValue": "={{ $('Edit Fields').item.json.output.order.total_net_value.tax }}"
+            },
+            {
+              "fieldId": "total_amount",
+              "fieldValue": "={{ $('Edit Fields').item.json.output.order.total_net_value.total }}"
+            },
+            {
+              "fieldId": "pdf_source_url",
+              "fieldValue": "={{$('Set Data URL').item.json.Document_Url}}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1280,
+        -208
+      ],
+      "id": "e6bc9099-b851-4805-b341-c247ec0da4fc",
+      "name": "Create a row",
+      "credentials": {
+        "supabaseApi": {
+          "id": "su4PGl3FGuDDj5MD",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "orders",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "purchase_order_number",
+              "keyValue": "={{ $json.output.order.purchase_order_number }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        800,
+        -16
+      ],
+      "id": "499056d2-c51a-4e8a-b833-6a5169a70a77",
+      "name": "Get a row",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "su4PGl3FGuDDj5MD",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "97fc5d88-158b-436d-9f7a-c9ebf52d6f6c",
+              "leftValue": "={{$('Get a row').item.json.isEmpty()}}",
+              "rightValue": "true",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        992,
+        -16
+      ],
+      "id": "21c4bcaf-942c-460a-9ea1-be483c1b8537",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "orders",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "purchase_order_number",
+              "condition": "eq",
+              "keyValue": "={{ $json.purchase_order_number }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "purchase_order_number",
+              "fieldValue": "={{ $('Edit Fields').item.json.output.order.purchase_order_number }}"
+            },
+            {
+              "fieldId": "vendor_name",
+              "fieldValue": "={{ $('Edit Fields').item.json.output.vendor.name }}"
+            },
+            {
+              "fieldId": "vendor_number",
+              "fieldValue": "={{ $('Edit Fields').item.json.output.vendor.vendor_number }}"
+            },
+            {
+              "fieldId": "vendor_street",
+              "fieldValue": "={{ $('Edit Fields').item.json.output.vendor.address.street }}"
+            },
+            {
+              "fieldId": "vendor_postal_code",
+              "fieldValue": "={{ $('Edit Fields').item.json.output.vendor.address.postal_code }}"
+            },
+            {
+              "fieldId": "vendor_city",
+              "fieldValue": "={{ $('Edit Fields').item.json.output.vendor.address.city }}"
+            },
+            {
+              "fieldId": "vendor_vat_registration",
+              "fieldValue": "={{ $('Edit Fields').item.json.output.vendor.client_vat_registration_no_to_invoice }}"
+            },
+            {
+              "fieldId": "purchase_order_date",
+              "fieldValue": "={{ $('Edit Fields').item.json.output.order.purchase_order_date }}"
+            },
+            {
+              "fieldId": "delivery_date",
+              "fieldValue": "={{ $('Edit Fields').item.json.output.order.delivery_date }}"
+            },
+            {
+              "fieldId": "delivery_name",
+              "fieldValue": "={{ $('Edit Fields').item.json.output.order.delivery_address.name }}"
+            },
+            {
+              "fieldId": "delivery_street",
+              "fieldValue": "={{ $('Edit Fields').item.json.output.order.delivery_address.address.street }}"
+            },
+            {
+              "fieldId": "delivery_street",
+              "fieldValue": "={{ $('Edit Fields').item.json.output.order.delivery_address.address.street }}"
+            },
+            {
+              "fieldId": "delivery_postal_code",
+              "fieldValue": "={{ $('Edit Fields').item.json.output.order.delivery_address.address.postal_code }}"
+            },
+            {
+              "fieldId": "delivery_city",
+              "fieldValue": "={{ $('Edit Fields').item.json.output.order.delivery_address.address.city }}"
+            },
+            {
+              "fieldId": "terms_of_delivery",
+              "fieldValue": "={{ $('Edit Fields').item.json.output.order.terms_of_delivery }}"
+            },
+            {
+              "fieldId": "payment_method",
+              "fieldValue": "={{ $('Edit Fields').item.json.output.order.terms_of_payment.method }}"
+            },
+            {
+              "fieldId": "payment_due_days",
+              "fieldValue": "={{ $('Edit Fields').item.json.output.order.terms_of_payment.due_days }}"
+            },
+            {
+              "fieldId": "payment_reference",
+              "fieldValue": "={{ $('Edit Fields').item.json.output.order.terms_of_payment.reference }}"
+            },
+            {
+              "fieldId": "from_invoice_date",
+              "fieldValue": "={{ $('Edit Fields').item.json.output.order.terms_of_payment.from_invoice_date }}"
+            },
+            {
+              "fieldId": "currency",
+              "fieldValue": "={{ $('Edit Fields').item.json.output.order.terms_of_payment.currency }}"
+            },
+            {
+              "fieldId": "subtotal_excl_tax",
+              "fieldValue": "={{ $('Edit Fields').item.json.output.order.total_net_value.excl_tax }}"
+            },
+            {
+              "fieldId": "total_tax",
+              "fieldValue": "={{ $('Edit Fields').item.json.output.order.total_net_value.tax }}"
+            },
+            {
+              "fieldId": "total_amount",
+              "fieldValue": "={{ $('Edit Fields').item.json.output.order.total_net_value.total }}"
+            },
+            {
+              "fieldId": "pdf_source_url",
+              "fieldValue": "={{$('Set Data URL').item.json.Document_Url}}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1264,
+        112
+      ],
+      "id": "f34c58fd-8cca-4dcf-9b7f-6f55b7d4b515",
+      "name": "Update a row",
+      "credentials": {
+        "supabaseApi": {
+          "id": "su4PGl3FGuDDj5MD",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "output.order.items",
+        "include": "selectedOtherFields",
+        "fieldsToInclude": "output.order.purchase_order_number",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        1040,
+        320
+      ],
+      "id": "31efad79-30ee-486d-b13b-c214a737890d",
+      "name": "Split Out"
+    },
+    {
+      "parameters": {
+        "tableId": "order_items",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "purchase_order_number",
+              "fieldValue": "={{ $json['output.order.purchase_order_number'] }}"
+            },
+            {
+              "fieldId": "item_number",
+              "fieldValue": "={{ $json['output.order.items'].item_number }}"
+            },
+            {
+              "fieldId": "material_number",
+              "fieldValue": "={{ $json['output.order.items'].material_number }}"
+            },
+            {
+              "fieldId": "description",
+              "fieldValue": "={{ $json['output.order.items'].description }}"
+            },
+            {
+              "fieldId": "order_quantity",
+              "fieldValue": "={{ $json['output.order.items'].order_quantity }}"
+            },
+            {
+              "fieldId": "unit",
+              "fieldValue": "={{ $json['output.order.items'].unit }}"
+            },
+            {
+              "fieldId": "ean_number",
+              "fieldValue": "={{ $json['output.order.items'].international_article_number }}"
+            },
+            {
+              "fieldId": "total_net_value",
+              "fieldValue": "={{ $json['output.order.items'].total_net_value }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1264,
+        320
+      ],
+      "id": "1a0c2305-4e9d-4471-9fad-1417ec608194",
+      "name": "Add item into table",
+      "credentials": {
+        "supabaseApi": {
+          "id": "su4PGl3FGuDDj5MD",
+          "name": "Supabase account"
+        }
+      }
+    }
+  ],
+  "pinData": {
+    "Mistral Models check": [
+      {
+        "json": {
+          "object": "list",
+          "data": [
+            {
+              "id": "mistral-medium-2505",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": true,
+                "function_calling": true,
+                "completion_fim": false,
+                "fine_tuning": true,
+                "vision": true,
+                "ocr": false,
+                "classification": false,
+                "moderation": false,
+                "audio": false
+              },
+              "name": "mistral-medium-2505",
+              "description": "Our frontier-class multimodal model released May 2025.",
+              "max_context_length": 131072,
+              "aliases": [],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": 0.3,
+              "type": "base"
+            },
+            {
+              "id": "mistral-large-latest",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": true,
+                "function_calling": true,
+                "completion_fim": false,
+                "fine_tuning": true,
+                "vision": true,
+                "ocr": false,
+                "classification": false,
+                "moderation": false,
+                "audio": false
+              },
+              "name": "mistral-large-latest",
+              "description": "Official mistral-large-latest Mistral AI model",
+              "max_context_length": 131072,
+              "aliases": [],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": 0.3,
+              "type": "base"
+            },
+            {
+              "id": "mistral-medium-2508",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": true,
+                "function_calling": true,
+                "completion_fim": false,
+                "fine_tuning": true,
+                "vision": true,
+                "ocr": false,
+                "classification": false,
+                "moderation": false,
+                "audio": false
+              },
+              "name": "mistral-medium-2508",
+              "description": "Update on Mistral Medium 3 with improved capabilities.",
+              "max_context_length": 131072,
+              "aliases": [
+                "mistral-medium-latest",
+                "mistral-medium"
+              ],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": 0.3,
+              "type": "base"
+            },
+            {
+              "id": "mistral-medium-latest",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": true,
+                "function_calling": true,
+                "completion_fim": false,
+                "fine_tuning": true,
+                "vision": true,
+                "ocr": false,
+                "classification": false,
+                "moderation": false,
+                "audio": false
+              },
+              "name": "mistral-medium-2508",
+              "description": "Update on Mistral Medium 3 with improved capabilities.",
+              "max_context_length": 131072,
+              "aliases": [
+                "mistral-medium-2508",
+                "mistral-medium"
+              ],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": 0.3,
+              "type": "base"
+            },
+            {
+              "id": "mistral-medium",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": true,
+                "function_calling": true,
+                "completion_fim": false,
+                "fine_tuning": true,
+                "vision": true,
+                "ocr": false,
+                "classification": false,
+                "moderation": false,
+                "audio": false
+              },
+              "name": "mistral-medium-2508",
+              "description": "Update on Mistral Medium 3 with improved capabilities.",
+              "max_context_length": 131072,
+              "aliases": [
+                "mistral-medium-2508",
+                "mistral-medium-latest"
+              ],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": 0.3,
+              "type": "base"
+            },
+            {
+              "id": "ministral-3b-2410",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": false,
+                "function_calling": false,
+                "completion_fim": false,
+                "fine_tuning": false,
+                "vision": false,
+                "ocr": false,
+                "classification": true,
+                "moderation": false,
+                "audio": false
+              },
+              "name": "ministral-3b-2410",
+              "description": "Official ministral-3b-2410 Mistral AI model",
+              "max_context_length": 32768,
+              "aliases": [
+                "ministral-3b-latest"
+              ],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": null,
+              "type": "base"
+            },
+            {
+              "id": "ministral-3b-latest",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": false,
+                "function_calling": false,
+                "completion_fim": false,
+                "fine_tuning": false,
+                "vision": false,
+                "ocr": false,
+                "classification": true,
+                "moderation": false,
+                "audio": false
+              },
+              "name": "ministral-3b-2410",
+              "description": "Official ministral-3b-2410 Mistral AI model",
+              "max_context_length": 32768,
+              "aliases": [
+                "ministral-3b-2410"
+              ],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": null,
+              "type": "base"
+            },
+            {
+              "id": "ministral-8b-2410",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": true,
+                "function_calling": true,
+                "completion_fim": false,
+                "fine_tuning": true,
+                "vision": false,
+                "ocr": false,
+                "classification": false,
+                "moderation": false,
+                "audio": false
+              },
+              "name": "ministral-8b-2410",
+              "description": "Powerful edge model with extremely high performance/price ratio.",
+              "max_context_length": 131072,
+              "aliases": [
+                "ministral-8b-latest"
+              ],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": 0.3,
+              "type": "base"
+            },
+            {
+              "id": "ministral-8b-latest",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": true,
+                "function_calling": true,
+                "completion_fim": false,
+                "fine_tuning": true,
+                "vision": false,
+                "ocr": false,
+                "classification": false,
+                "moderation": false,
+                "audio": false
+              },
+              "name": "ministral-8b-2410",
+              "description": "Powerful edge model with extremely high performance/price ratio.",
+              "max_context_length": 131072,
+              "aliases": [
+                "ministral-8b-2410"
+              ],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": 0.3,
+              "type": "base"
+            },
+            {
+              "id": "open-mistral-7b",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": true,
+                "function_calling": true,
+                "completion_fim": false,
+                "fine_tuning": true,
+                "vision": false,
+                "ocr": false,
+                "classification": false,
+                "moderation": false,
+                "audio": false
+              },
+              "name": "open-mistral-7b",
+              "description": "Our first dense model released September 2023.",
+              "max_context_length": 32768,
+              "aliases": [
+                "mistral-tiny",
+                "mistral-tiny-2312"
+              ],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": 0.7,
+              "type": "base"
+            },
+            {
+              "id": "mistral-tiny",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": true,
+                "function_calling": true,
+                "completion_fim": false,
+                "fine_tuning": true,
+                "vision": false,
+                "ocr": false,
+                "classification": false,
+                "moderation": false,
+                "audio": false
+              },
+              "name": "open-mistral-7b",
+              "description": "Our first dense model released September 2023.",
+              "max_context_length": 32768,
+              "aliases": [
+                "open-mistral-7b",
+                "mistral-tiny-2312"
+              ],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": 0.7,
+              "type": "base"
+            },
+            {
+              "id": "mistral-tiny-2312",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": true,
+                "function_calling": true,
+                "completion_fim": false,
+                "fine_tuning": true,
+                "vision": false,
+                "ocr": false,
+                "classification": false,
+                "moderation": false,
+                "audio": false
+              },
+              "name": "open-mistral-7b",
+              "description": "Our first dense model released September 2023.",
+              "max_context_length": 32768,
+              "aliases": [
+                "open-mistral-7b",
+                "mistral-tiny"
+              ],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": 0.7,
+              "type": "base"
+            },
+            {
+              "id": "open-mistral-nemo",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": true,
+                "function_calling": true,
+                "completion_fim": false,
+                "fine_tuning": true,
+                "vision": false,
+                "ocr": false,
+                "classification": false,
+                "moderation": false,
+                "audio": false
+              },
+              "name": "open-mistral-nemo",
+              "description": "Our best multilingual open source model released July 2024.",
+              "max_context_length": 131072,
+              "aliases": [
+                "open-mistral-nemo-2407",
+                "mistral-tiny-2407",
+                "mistral-tiny-latest"
+              ],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": 0.3,
+              "type": "base"
+            },
+            {
+              "id": "open-mistral-nemo-2407",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": true,
+                "function_calling": true,
+                "completion_fim": false,
+                "fine_tuning": true,
+                "vision": false,
+                "ocr": false,
+                "classification": false,
+                "moderation": false,
+                "audio": false
+              },
+              "name": "open-mistral-nemo",
+              "description": "Our best multilingual open source model released July 2024.",
+              "max_context_length": 131072,
+              "aliases": [
+                "open-mistral-nemo",
+                "mistral-tiny-2407",
+                "mistral-tiny-latest"
+              ],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": 0.3,
+              "type": "base"
+            },
+            {
+              "id": "mistral-tiny-2407",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": true,
+                "function_calling": true,
+                "completion_fim": false,
+                "fine_tuning": true,
+                "vision": false,
+                "ocr": false,
+                "classification": false,
+                "moderation": false,
+                "audio": false
+              },
+              "name": "open-mistral-nemo",
+              "description": "Our best multilingual open source model released July 2024.",
+              "max_context_length": 131072,
+              "aliases": [
+                "open-mistral-nemo",
+                "open-mistral-nemo-2407",
+                "mistral-tiny-latest"
+              ],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": 0.3,
+              "type": "base"
+            },
+            {
+              "id": "mistral-tiny-latest",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": true,
+                "function_calling": true,
+                "completion_fim": false,
+                "fine_tuning": true,
+                "vision": false,
+                "ocr": false,
+                "classification": false,
+                "moderation": false,
+                "audio": false
+              },
+              "name": "open-mistral-nemo",
+              "description": "Our best multilingual open source model released July 2024.",
+              "max_context_length": 131072,
+              "aliases": [
+                "open-mistral-nemo",
+                "open-mistral-nemo-2407",
+                "mistral-tiny-2407"
+              ],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": 0.3,
+              "type": "base"
+            },
+            {
+              "id": "open-mixtral-8x7b",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": true,
+                "function_calling": true,
+                "completion_fim": false,
+                "fine_tuning": false,
+                "vision": false,
+                "ocr": false,
+                "classification": false,
+                "moderation": false,
+                "audio": false
+              },
+              "name": "open-mixtral-8x7b",
+              "description": "Our first sparse mixture-of-experts released December 2023.",
+              "max_context_length": 32768,
+              "aliases": [
+                "mistral-small",
+                "mistral-small-2312"
+              ],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": 0.7,
+              "type": "base"
+            },
+            {
+              "id": "mistral-small",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": true,
+                "function_calling": true,
+                "completion_fim": false,
+                "fine_tuning": false,
+                "vision": false,
+                "ocr": false,
+                "classification": false,
+                "moderation": false,
+                "audio": false
+              },
+              "name": "open-mixtral-8x7b",
+              "description": "Our first sparse mixture-of-experts released December 2023.",
+              "max_context_length": 32768,
+              "aliases": [
+                "open-mixtral-8x7b",
+                "mistral-small-2312"
+              ],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": 0.7,
+              "type": "base"
+            },
+            {
+              "id": "mistral-small-2312",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": true,
+                "function_calling": true,
+                "completion_fim": false,
+                "fine_tuning": false,
+                "vision": false,
+                "ocr": false,
+                "classification": false,
+                "moderation": false,
+                "audio": false
+              },
+              "name": "open-mixtral-8x7b",
+              "description": "Our first sparse mixture-of-experts released December 2023.",
+              "max_context_length": 32768,
+              "aliases": [
+                "open-mixtral-8x7b",
+                "mistral-small"
+              ],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": 0.7,
+              "type": "base"
+            },
+            {
+              "id": "open-mixtral-8x22b",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": true,
+                "function_calling": true,
+                "completion_fim": false,
+                "fine_tuning": false,
+                "vision": false,
+                "ocr": false,
+                "classification": false,
+                "moderation": false,
+                "audio": false
+              },
+              "name": "open-mixtral-8x22b",
+              "description": "Our best open source model to date released April 2024. ",
+              "max_context_length": 65536,
+              "aliases": [
+                "open-mixtral-8x22b-2404"
+              ],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": 0.7,
+              "type": "base"
+            },
+            {
+              "id": "open-mixtral-8x22b-2404",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": true,
+                "function_calling": true,
+                "completion_fim": false,
+                "fine_tuning": false,
+                "vision": false,
+                "ocr": false,
+                "classification": false,
+                "moderation": false,
+                "audio": false
+              },
+              "name": "open-mixtral-8x22b",
+              "description": "Our best open source model to date released April 2024. ",
+              "max_context_length": 65536,
+              "aliases": [
+                "open-mixtral-8x22b"
+              ],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": 0.7,
+              "type": "base"
+            },
+            {
+              "id": "mistral-small-2409",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": true,
+                "function_calling": true,
+                "completion_fim": false,
+                "fine_tuning": true,
+                "vision": false,
+                "ocr": false,
+                "classification": false,
+                "moderation": false,
+                "audio": false
+              },
+              "name": "mistral-small-2409",
+              "description": "Our latest enterprise-grade small model with the latest version v2 released September 2024. ",
+              "max_context_length": 32768,
+              "aliases": [],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": 0.7,
+              "type": "base"
+            },
+            {
+              "id": "mistral-large-2407",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": true,
+                "function_calling": true,
+                "completion_fim": false,
+                "fine_tuning": true,
+                "vision": false,
+                "ocr": false,
+                "classification": false,
+                "moderation": false,
+                "audio": false
+              },
+              "name": "mistral-large-2407",
+              "description": "Our top-tier reasoning model for high-complexity tasks with the latest version v2 released July 2024.",
+              "max_context_length": 131072,
+              "aliases": [],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": 0.7,
+              "type": "base"
+            },
+            {
+              "id": "mistral-large-2411",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": true,
+                "function_calling": true,
+                "completion_fim": false,
+                "fine_tuning": true,
+                "vision": false,
+                "ocr": false,
+                "classification": false,
+                "moderation": false,
+                "audio": false
+              },
+              "name": "mistral-large-2411",
+              "description": "Our top-tier reasoning model for high-complexity tasks with the lastest version released November 2024.",
+              "max_context_length": 131072,
+              "aliases": [],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": 0.7,
+              "type": "base"
+            },
+            {
+              "id": "pixtral-large-2411",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": true,
+                "function_calling": true,
+                "completion_fim": false,
+                "fine_tuning": false,
+                "vision": true,
+                "ocr": false,
+                "classification": false,
+                "moderation": false,
+                "audio": false
+              },
+              "name": "pixtral-large-2411",
+              "description": "Official pixtral-large-2411 Mistral AI model",
+              "max_context_length": 131072,
+              "aliases": [
+                "pixtral-large-latest",
+                "mistral-large-pixtral-2411"
+              ],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": 0.7,
+              "type": "base"
+            },
+            {
+              "id": "pixtral-large-latest",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": true,
+                "function_calling": true,
+                "completion_fim": false,
+                "fine_tuning": false,
+                "vision": true,
+                "ocr": false,
+                "classification": false,
+                "moderation": false,
+                "audio": false
+              },
+              "name": "pixtral-large-2411",
+              "description": "Official pixtral-large-2411 Mistral AI model",
+              "max_context_length": 131072,
+              "aliases": [
+                "pixtral-large-2411",
+                "mistral-large-pixtral-2411"
+              ],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": 0.7,
+              "type": "base"
+            },
+            {
+              "id": "mistral-large-pixtral-2411",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": true,
+                "function_calling": true,
+                "completion_fim": false,
+                "fine_tuning": false,
+                "vision": true,
+                "ocr": false,
+                "classification": false,
+                "moderation": false,
+                "audio": false
+              },
+              "name": "pixtral-large-2411",
+              "description": "Official pixtral-large-2411 Mistral AI model",
+              "max_context_length": 131072,
+              "aliases": [
+                "pixtral-large-2411",
+                "pixtral-large-latest"
+              ],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": 0.7,
+              "type": "base"
+            },
+            {
+              "id": "codestral-2501",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": true,
+                "function_calling": true,
+                "completion_fim": true,
+                "fine_tuning": true,
+                "vision": false,
+                "ocr": false,
+                "classification": false,
+                "moderation": false,
+                "audio": false
+              },
+              "name": "codestral-2501",
+              "description": "Our cutting-edge language model for coding released December 2024.",
+              "max_context_length": 262144,
+              "aliases": [
+                "codestral-2412",
+                "codestral-2411-rc5"
+              ],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": 0.3,
+              "type": "base"
+            },
+            {
+              "id": "codestral-2412",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": true,
+                "function_calling": true,
+                "completion_fim": true,
+                "fine_tuning": true,
+                "vision": false,
+                "ocr": false,
+                "classification": false,
+                "moderation": false,
+                "audio": false
+              },
+              "name": "codestral-2501",
+              "description": "Our cutting-edge language model for coding released December 2024.",
+              "max_context_length": 262144,
+              "aliases": [
+                "codestral-2501",
+                "codestral-2411-rc5"
+              ],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": 0.3,
+              "type": "base"
+            },
+            {
+              "id": "codestral-2411-rc5",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": true,
+                "function_calling": true,
+                "completion_fim": true,
+                "fine_tuning": true,
+                "vision": false,
+                "ocr": false,
+                "classification": false,
+                "moderation": false,
+                "audio": false
+              },
+              "name": "codestral-2501",
+              "description": "Our cutting-edge language model for coding released December 2024.",
+              "max_context_length": 262144,
+              "aliases": [
+                "codestral-2501",
+                "codestral-2412"
+              ],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": 0.3,
+              "type": "base"
+            },
+            {
+              "id": "codestral-2508",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": true,
+                "function_calling": true,
+                "completion_fim": true,
+                "fine_tuning": false,
+                "vision": false,
+                "ocr": false,
+                "classification": false,
+                "moderation": false,
+                "audio": false
+              },
+              "name": "codestral-2508",
+              "description": "Our cutting-edge language model for coding released August 2025.",
+              "max_context_length": 256000,
+              "aliases": [
+                "codestral-latest"
+              ],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": 0.3,
+              "type": "base"
+            },
+            {
+              "id": "codestral-latest",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": true,
+                "function_calling": true,
+                "completion_fim": true,
+                "fine_tuning": false,
+                "vision": false,
+                "ocr": false,
+                "classification": false,
+                "moderation": false,
+                "audio": false
+              },
+              "name": "codestral-2508",
+              "description": "Our cutting-edge language model for coding released August 2025.",
+              "max_context_length": 256000,
+              "aliases": [
+                "codestral-2508"
+              ],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": 0.3,
+              "type": "base"
+            },
+            {
+              "id": "devstral-small-2507",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": true,
+                "function_calling": true,
+                "completion_fim": false,
+                "fine_tuning": false,
+                "vision": false,
+                "ocr": false,
+                "classification": false,
+                "moderation": false,
+                "audio": false
+              },
+              "name": "devstral-small-2507",
+              "description": "Our small open-source code-agentic model.",
+              "max_context_length": 131072,
+              "aliases": [
+                "devstral-small-latest"
+              ],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": 0,
+              "type": "base"
+            },
+            {
+              "id": "devstral-small-latest",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": true,
+                "function_calling": true,
+                "completion_fim": false,
+                "fine_tuning": false,
+                "vision": false,
+                "ocr": false,
+                "classification": false,
+                "moderation": false,
+                "audio": false
+              },
+              "name": "devstral-small-2507",
+              "description": "Our small open-source code-agentic model.",
+              "max_context_length": 131072,
+              "aliases": [
+                "devstral-small-2507"
+              ],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": 0,
+              "type": "base"
+            },
+            {
+              "id": "devstral-medium-2507",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": true,
+                "function_calling": true,
+                "completion_fim": false,
+                "fine_tuning": false,
+                "vision": false,
+                "ocr": false,
+                "classification": false,
+                "moderation": false,
+                "audio": false
+              },
+              "name": "devstral-medium-2507",
+              "description": "Our medium code-agentic model.",
+              "max_context_length": 131072,
+              "aliases": [
+                "devstral-medium-latest"
+              ],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": 0,
+              "type": "base"
+            },
+            {
+              "id": "devstral-medium-latest",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": true,
+                "function_calling": true,
+                "completion_fim": false,
+                "fine_tuning": false,
+                "vision": false,
+                "ocr": false,
+                "classification": false,
+                "moderation": false,
+                "audio": false
+              },
+              "name": "devstral-medium-2507",
+              "description": "Our medium code-agentic model.",
+              "max_context_length": 131072,
+              "aliases": [
+                "devstral-medium-2507"
+              ],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": 0,
+              "type": "base"
+            },
+            {
+              "id": "pixtral-12b-2409",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": true,
+                "function_calling": true,
+                "completion_fim": false,
+                "fine_tuning": true,
+                "vision": true,
+                "ocr": false,
+                "classification": false,
+                "moderation": false,
+                "audio": false
+              },
+              "name": "pixtral-12b-2409",
+              "description": "A 12B model with image understanding capabilities in addition to text.",
+              "max_context_length": 131072,
+              "aliases": [
+                "pixtral-12b",
+                "pixtral-12b-latest"
+              ],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": 0.3,
+              "type": "base"
+            },
+            {
+              "id": "pixtral-12b",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": true,
+                "function_calling": true,
+                "completion_fim": false,
+                "fine_tuning": true,
+                "vision": true,
+                "ocr": false,
+                "classification": false,
+                "moderation": false,
+                "audio": false
+              },
+              "name": "pixtral-12b-2409",
+              "description": "A 12B model with image understanding capabilities in addition to text.",
+              "max_context_length": 131072,
+              "aliases": [
+                "pixtral-12b-2409",
+                "pixtral-12b-latest"
+              ],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": 0.3,
+              "type": "base"
+            },
+            {
+              "id": "pixtral-12b-latest",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": true,
+                "function_calling": true,
+                "completion_fim": false,
+                "fine_tuning": true,
+                "vision": true,
+                "ocr": false,
+                "classification": false,
+                "moderation": false,
+                "audio": false
+              },
+              "name": "pixtral-12b-2409",
+              "description": "A 12B model with image understanding capabilities in addition to text.",
+              "max_context_length": 131072,
+              "aliases": [
+                "pixtral-12b-2409",
+                "pixtral-12b"
+              ],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": 0.3,
+              "type": "base"
+            },
+            {
+              "id": "mistral-small-2501",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": true,
+                "function_calling": true,
+                "completion_fim": false,
+                "fine_tuning": true,
+                "vision": false,
+                "ocr": false,
+                "classification": false,
+                "moderation": false,
+                "audio": false
+              },
+              "name": "mistral-small-2501",
+              "description": "Our latest enterprise-grade small model with the latest version released January 2025. ",
+              "max_context_length": 32768,
+              "aliases": [],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": 0.3,
+              "type": "base"
+            },
+            {
+              "id": "mistral-small-2503",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": true,
+                "function_calling": true,
+                "completion_fim": false,
+                "fine_tuning": false,
+                "vision": true,
+                "ocr": false,
+                "classification": false,
+                "moderation": false,
+                "audio": false
+              },
+              "name": "mistral-small-2503",
+              "description": "Our latest enterprise-grade small model with the latest version released March 2025.",
+              "max_context_length": 131072,
+              "aliases": [],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": 0.3,
+              "type": "base"
+            },
+            {
+              "id": "mistral-small-2506",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": true,
+                "function_calling": true,
+                "completion_fim": false,
+                "fine_tuning": false,
+                "vision": true,
+                "ocr": false,
+                "classification": false,
+                "moderation": false,
+                "audio": false
+              },
+              "name": "mistral-small-2506",
+              "description": "Our latest enterprise-grade small model with the latest version released June 2025.",
+              "max_context_length": 131072,
+              "aliases": [
+                "mistral-small-latest"
+              ],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": 0.3,
+              "type": "base"
+            },
+            {
+              "id": "mistral-small-latest",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": true,
+                "function_calling": true,
+                "completion_fim": false,
+                "fine_tuning": false,
+                "vision": true,
+                "ocr": false,
+                "classification": false,
+                "moderation": false,
+                "audio": false
+              },
+              "name": "mistral-small-2506",
+              "description": "Our latest enterprise-grade small model with the latest version released June 2025.",
+              "max_context_length": 131072,
+              "aliases": [
+                "mistral-small-2506"
+              ],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": 0.3,
+              "type": "base"
+            },
+            {
+              "id": "magistral-medium-2509",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": true,
+                "function_calling": true,
+                "completion_fim": false,
+                "fine_tuning": true,
+                "vision": true,
+                "ocr": false,
+                "classification": false,
+                "moderation": false,
+                "audio": false
+              },
+              "name": "magistral-medium-2509",
+              "description": "Our frontier-class reasoning model release candidate September 2025.",
+              "max_context_length": 131072,
+              "aliases": [
+                "magistral-medium-latest"
+              ],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": 0.7,
+              "type": "base"
+            },
+            {
+              "id": "magistral-medium-latest",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": true,
+                "function_calling": true,
+                "completion_fim": false,
+                "fine_tuning": true,
+                "vision": true,
+                "ocr": false,
+                "classification": false,
+                "moderation": false,
+                "audio": false
+              },
+              "name": "magistral-medium-2509",
+              "description": "Our frontier-class reasoning model release candidate September 2025.",
+              "max_context_length": 131072,
+              "aliases": [
+                "magistral-medium-2509"
+              ],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": 0.7,
+              "type": "base"
+            },
+            {
+              "id": "magistral-small-2509",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": true,
+                "function_calling": true,
+                "completion_fim": false,
+                "fine_tuning": true,
+                "vision": true,
+                "ocr": false,
+                "classification": false,
+                "moderation": false,
+                "audio": false
+              },
+              "name": "magistral-small-2509",
+              "description": "Our efficient reasoning model released September 2025.",
+              "max_context_length": 131072,
+              "aliases": [
+                "magistral-small-latest"
+              ],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": 0.7,
+              "type": "base"
+            },
+            {
+              "id": "magistral-small-latest",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": true,
+                "function_calling": true,
+                "completion_fim": false,
+                "fine_tuning": true,
+                "vision": true,
+                "ocr": false,
+                "classification": false,
+                "moderation": false,
+                "audio": false
+              },
+              "name": "magistral-small-2509",
+              "description": "Our efficient reasoning model released September 2025.",
+              "max_context_length": 131072,
+              "aliases": [
+                "magistral-small-2509"
+              ],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": 0.7,
+              "type": "base"
+            },
+            {
+              "id": "voxtral-mini-2507",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": true,
+                "function_calling": false,
+                "completion_fim": false,
+                "fine_tuning": false,
+                "vision": false,
+                "ocr": false,
+                "classification": false,
+                "moderation": false,
+                "audio": true
+              },
+              "name": "voxtral-mini-2507",
+              "description": "A mini audio understanding model released in July 2025",
+              "max_context_length": 32768,
+              "aliases": [
+                "voxtral-mini-latest"
+              ],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": 0.2,
+              "type": "base"
+            },
+            {
+              "id": "voxtral-mini-latest",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": true,
+                "function_calling": false,
+                "completion_fim": false,
+                "fine_tuning": false,
+                "vision": false,
+                "ocr": false,
+                "classification": false,
+                "moderation": false,
+                "audio": true
+              },
+              "name": "voxtral-mini-2507",
+              "description": "A mini audio understanding model released in July 2025",
+              "max_context_length": 32768,
+              "aliases": [
+                "voxtral-mini-2507"
+              ],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": 0.2,
+              "type": "base"
+            },
+            {
+              "id": "voxtral-small-2507",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": true,
+                "function_calling": true,
+                "completion_fim": false,
+                "fine_tuning": false,
+                "vision": false,
+                "ocr": false,
+                "classification": false,
+                "moderation": false,
+                "audio": true
+              },
+              "name": "voxtral-small-2507",
+              "description": "A small audio understanding model released in July 2025",
+              "max_context_length": 32768,
+              "aliases": [
+                "voxtral-small-latest"
+              ],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": 0.2,
+              "type": "base"
+            },
+            {
+              "id": "voxtral-small-latest",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": true,
+                "function_calling": true,
+                "completion_fim": false,
+                "fine_tuning": false,
+                "vision": false,
+                "ocr": false,
+                "classification": false,
+                "moderation": false,
+                "audio": true
+              },
+              "name": "voxtral-small-2507",
+              "description": "A small audio understanding model released in July 2025",
+              "max_context_length": 32768,
+              "aliases": [
+                "voxtral-small-2507"
+              ],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": 0.2,
+              "type": "base"
+            },
+            {
+              "id": "devstral-small-2505",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": true,
+                "function_calling": true,
+                "completion_fim": false,
+                "fine_tuning": false,
+                "vision": false,
+                "ocr": false,
+                "classification": false,
+                "moderation": false,
+                "audio": false
+              },
+              "name": "devstral-small-2505",
+              "description": "Our small open-source code-agentic model.",
+              "max_context_length": 131072,
+              "aliases": [],
+              "deprecation": "2025-11-30T12:00:00Z",
+              "deprecation_replacement_model": "devstral-small-latest",
+              "default_model_temperature": 0,
+              "type": "base"
+            },
+            {
+              "id": "magistral-small-2506",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": true,
+                "function_calling": true,
+                "completion_fim": false,
+                "fine_tuning": true,
+                "vision": true,
+                "ocr": false,
+                "classification": false,
+                "moderation": false,
+                "audio": false
+              },
+              "name": "magistral-small-2506",
+              "description": "Our efficient reasoning model released June 2025.",
+              "max_context_length": 40000,
+              "aliases": [],
+              "deprecation": "2025-11-30T12:00:00Z",
+              "deprecation_replacement_model": "magistral-small-latest",
+              "default_model_temperature": 0.7,
+              "type": "base"
+            },
+            {
+              "id": "magistral-medium-2506",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": true,
+                "function_calling": true,
+                "completion_fim": false,
+                "fine_tuning": true,
+                "vision": true,
+                "ocr": false,
+                "classification": false,
+                "moderation": false,
+                "audio": false
+              },
+              "name": "magistral-medium-2506",
+              "description": "Our frontier-class reasoning model released June 2025.",
+              "max_context_length": 40960,
+              "aliases": [],
+              "deprecation": "2025-11-30T12:00:00Z",
+              "deprecation_replacement_model": "magistral-medium-latest",
+              "default_model_temperature": 0.7,
+              "type": "base"
+            },
+            {
+              "id": "magistral-small-2507",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": true,
+                "function_calling": true,
+                "completion_fim": false,
+                "fine_tuning": true,
+                "vision": true,
+                "ocr": false,
+                "classification": false,
+                "moderation": false,
+                "audio": false
+              },
+              "name": "magistral-small-2507",
+              "description": "Our efficient reasoning model released July 2025.",
+              "max_context_length": 40960,
+              "aliases": [],
+              "deprecation": "2025-11-30T12:00:00Z",
+              "deprecation_replacement_model": "magistral-small-latest",
+              "default_model_temperature": 0.7,
+              "type": "base"
+            },
+            {
+              "id": "magistral-medium-2507",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": true,
+                "function_calling": true,
+                "completion_fim": false,
+                "fine_tuning": true,
+                "vision": true,
+                "ocr": false,
+                "classification": false,
+                "moderation": false,
+                "audio": false
+              },
+              "name": "magistral-medium-2507",
+              "description": "Our frontier-class reasoning model released July 2025.",
+              "max_context_length": 40960,
+              "aliases": [],
+              "deprecation": "2025-11-30T12:00:00Z",
+              "deprecation_replacement_model": "magistral-medium-latest",
+              "default_model_temperature": 0.7,
+              "type": "base"
+            },
+            {
+              "id": "mistral-embed-2312",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": false,
+                "function_calling": false,
+                "completion_fim": false,
+                "fine_tuning": false,
+                "vision": false,
+                "ocr": false,
+                "classification": false,
+                "moderation": false,
+                "audio": false
+              },
+              "name": "mistral-embed-2312",
+              "description": "Official mistral-embed-2312 Mistral AI model",
+              "max_context_length": 8192,
+              "aliases": [
+                "mistral-embed"
+              ],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": null,
+              "type": "base"
+            },
+            {
+              "id": "mistral-embed",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": false,
+                "function_calling": false,
+                "completion_fim": false,
+                "fine_tuning": false,
+                "vision": false,
+                "ocr": false,
+                "classification": false,
+                "moderation": false,
+                "audio": false
+              },
+              "name": "mistral-embed-2312",
+              "description": "Official mistral-embed-2312 Mistral AI model",
+              "max_context_length": 8192,
+              "aliases": [
+                "mistral-embed-2312"
+              ],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": null,
+              "type": "base"
+            },
+            {
+              "id": "codestral-embed",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": false,
+                "function_calling": false,
+                "completion_fim": false,
+                "fine_tuning": false,
+                "vision": false,
+                "ocr": false,
+                "classification": false,
+                "moderation": false,
+                "audio": false
+              },
+              "name": "codestral-embed",
+              "description": "Official codestral-embed Mistral AI model",
+              "max_context_length": 8192,
+              "aliases": [
+                "codestral-embed-2505"
+              ],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": null,
+              "type": "base"
+            },
+            {
+              "id": "codestral-embed-2505",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": false,
+                "function_calling": false,
+                "completion_fim": false,
+                "fine_tuning": false,
+                "vision": false,
+                "ocr": false,
+                "classification": false,
+                "moderation": false,
+                "audio": false
+              },
+              "name": "codestral-embed",
+              "description": "Official codestral-embed Mistral AI model",
+              "max_context_length": 8192,
+              "aliases": [
+                "codestral-embed"
+              ],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": null,
+              "type": "base"
+            },
+            {
+              "id": "mistral-moderation-2411",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": false,
+                "function_calling": false,
+                "completion_fim": false,
+                "fine_tuning": false,
+                "vision": false,
+                "ocr": false,
+                "classification": true,
+                "moderation": true,
+                "audio": false
+              },
+              "name": "mistral-moderation-2411",
+              "description": "Official mistral-moderation-2411 Mistral AI model",
+              "max_context_length": 8192,
+              "aliases": [
+                "mistral-moderation-latest"
+              ],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": null,
+              "type": "base"
+            },
+            {
+              "id": "mistral-moderation-latest",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": false,
+                "function_calling": false,
+                "completion_fim": false,
+                "fine_tuning": false,
+                "vision": false,
+                "ocr": false,
+                "classification": true,
+                "moderation": true,
+                "audio": false
+              },
+              "name": "mistral-moderation-2411",
+              "description": "Official mistral-moderation-2411 Mistral AI model",
+              "max_context_length": 8192,
+              "aliases": [
+                "mistral-moderation-2411"
+              ],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": null,
+              "type": "base"
+            },
+            {
+              "id": "mistral-ocr-2503",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": true,
+                "function_calling": true,
+                "completion_fim": false,
+                "fine_tuning": false,
+                "vision": true,
+                "ocr": true,
+                "classification": false,
+                "moderation": false,
+                "audio": false
+              },
+              "name": "mistral-ocr-2503",
+              "description": "Official mistral-ocr-2503 Mistral AI model",
+              "max_context_length": 16384,
+              "aliases": [],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": 0,
+              "type": "base"
+            },
+            {
+              "id": "mistral-ocr-2505",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": true,
+                "function_calling": true,
+                "completion_fim": false,
+                "fine_tuning": false,
+                "vision": true,
+                "ocr": true,
+                "classification": false,
+                "moderation": false,
+                "audio": false
+              },
+              "name": "mistral-ocr-2505",
+              "description": "Official mistral-ocr-2505 Mistral AI model",
+              "max_context_length": 16384,
+              "aliases": [
+                "mistral-ocr-latest"
+              ],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": 0,
+              "type": "base"
+            },
+            {
+              "id": "mistral-ocr-latest",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": true,
+                "function_calling": true,
+                "completion_fim": false,
+                "fine_tuning": false,
+                "vision": true,
+                "ocr": true,
+                "classification": false,
+                "moderation": false,
+                "audio": false
+              },
+              "name": "mistral-ocr-2505",
+              "description": "Official mistral-ocr-2505 Mistral AI model",
+              "max_context_length": 16384,
+              "aliases": [
+                "mistral-ocr-2505"
+              ],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": 0,
+              "type": "base"
+            },
+            {
+              "id": "voxtral-mini-transcribe-2507",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": true,
+                "function_calling": false,
+                "completion_fim": false,
+                "fine_tuning": false,
+                "vision": false,
+                "ocr": false,
+                "classification": false,
+                "moderation": false,
+                "audio": false
+              },
+              "name": "voxtral-mini-transcribe-2507",
+              "description": "A mini transcription model released in July 2025",
+              "max_context_length": 16384,
+              "aliases": [
+                "voxtral-mini-2507",
+                "voxtral-mini-latest"
+              ],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": 0,
+              "type": "base"
+            },
+            {
+              "id": "voxtral-mini-2507",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": true,
+                "function_calling": false,
+                "completion_fim": false,
+                "fine_tuning": false,
+                "vision": false,
+                "ocr": false,
+                "classification": false,
+                "moderation": false,
+                "audio": false
+              },
+              "name": "voxtral-mini-transcribe-2507",
+              "description": "A mini transcription model released in July 2025",
+              "max_context_length": 16384,
+              "aliases": [
+                "voxtral-mini-transcribe-2507",
+                "voxtral-mini-latest"
+              ],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": 0,
+              "type": "base"
+            },
+            {
+              "id": "voxtral-mini-latest",
+              "object": "model",
+              "created": 1761038479,
+              "owned_by": "mistralai",
+              "capabilities": {
+                "completion_chat": true,
+                "function_calling": false,
+                "completion_fim": false,
+                "fine_tuning": false,
+                "vision": false,
+                "ocr": false,
+                "classification": false,
+                "moderation": false,
+                "audio": false
+              },
+              "name": "voxtral-mini-transcribe-2507",
+              "description": "A mini transcription model released in July 2025",
+              "max_context_length": 16384,
+              "aliases": [
+                "voxtral-mini-transcribe-2507",
+                "voxtral-mini-2507"
+              ],
+              "deprecation": null,
+              "deprecation_replacement_model": null,
+              "default_model_temperature": 0,
+              "type": "base"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "connections": {
+    "On form submission": {
+      "main": [
+        [
+          {
+            "node": "Set Data URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Structured Output Parser",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Data URL": {
+      "main": [
+        [
+          {
+            "node": "Mistral DOC OCR2 Process",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mistral DOC OCR2 Process": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Get a row",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Split Out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create a row": {
+      "main": [
+        []
+      ]
+    },
+    "Get a row": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Create a row",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update a row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update a row": {
+      "main": [
+        []
+      ]
+    },
+    "Split Out": {
+      "main": [
+        [
+          {
+            "node": "Add item into table",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "61d597ad-c909-4dd5-926e-56ccfc70ba3c",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "e2b977e38c7c4d36887ad20ea718bdd8ac1bacd4a9016d794bfd8e80c7c3aa2a"
+  },
+  "id": "1X3vkvdWfAtroF6i",
+  "tags": []
+}
